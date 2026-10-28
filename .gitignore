@@ -1,0 +1,15 @@
+# local tool settings
+.claude/
+
+# scratch and debug copies of blueprints
+bp_compact.txt
+bp_debug.txt
+debug_bp.json
+
+# one-off data cleanup script for the original sheet
+build_cleanup.py
+
+# private application material
+RFF_pitch_brief.md
+
+__pycache__/

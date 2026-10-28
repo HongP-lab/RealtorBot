@@ -1,0 +1,1528 @@
+{
+ "name": "RealtorBot - Scenario A (text)",
+ "flow": [
+  {
+   "id": 1,
+   "module": "gateway:CustomWebHook",
+   "version": 1,
+   "parameters": {
+    "hook": 2982961,
+    "maxResults": 1
+   },
+   "mapper": {}
+  },
+  {
+   "id": 6,
+   "module": "builtin:BasicRouter",
+   "version": 1,
+   "mapper": null,
+   "routes": [
+    {
+     "flow": [
+      {
+       "id": 7,
+       "module": "google-sheets:filterRows",
+       "version": 2,
+       "parameters": {
+        "__IMTCONN__": 4480116,
+        "from": "drive",
+        "mode": "select",
+        "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+        "sheetId": "Log",
+        "includesHeaders": true,
+        "tableFirstRow": "A1:Z1",
+        "valueRenderOption": "FORMATTED_VALUE",
+        "dateTimeRenderOption": "FORMATTED_STRING"
+       },
+       "mapper": {
+        "filter": [
+         [
+          {
+           "a": "B",
+           "o": "text:equal",
+           "b": "{{1.events[].source.userId}}"
+          }
+         ]
+        ],
+        "sortOrder": "desc",
+        "orderBy": "A",
+        "limit": "6"
+       },
+       "filter": {
+        "name": "LINE text message only",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[].type}}",
+           "o": "text:equal",
+           "b": "message"
+          },
+          {
+           "a": "{{1.events[].message.type}}",
+           "o": "text:equal",
+           "b": "text"
+          }
+         ]
+        ]
+       }
+      },
+      {
+       "id": 8,
+       "module": "util:TextAggregator",
+       "version": 1,
+       "parameters": {
+        "feeder": 7,
+        "rowSeparator": " "
+       },
+       "mapper": {
+        "value": "{{if(length(7.`2`) > 0; newline; emptystring)}}{{if(length(7.`2`) > 0; \"- ผู้ใช้: \"; emptystring)}}{{if(length(7.`2`) > 0; 7.`2`; emptystring)}}{{if(length(7.`2`) > 0; \" | ระบบเข้าใจเป็น: \"; emptystring)}}{{if(length(7.`2`) > 0; 7.`4`; emptystring)}}"
+       }
+      },
+      {
+       "id": 2,
+       "module": "anthropic-claude:createAMessage",
+       "version": 1,
+       "parameters": {
+        "__IMTCONN__": 9081069
+       },
+       "mapper": {
+        "model": "claude-haiku-4-5-20251001",
+        "system": "คุณเป็นตัวแยกคำสั่งสำหรับนายหน้าอสังหาฯ ไทย ตอบเป็น JSON เท่านั้น ห้ามมีข้อความอื่น ห้ามใส่ ```\nintent ที่เป็นไปได้: add_property, ask_price, search_property, update_client, set_followup, list_followups, unknown\nfields: intent, property_name, type (คอนโด/บ้าน/ทาวน์โฮม/ที่ดิน), area (ย่าน/ทำเล เป็นชื่อสถานที่ ไม่ใช่ตัวเลข), price (ตัวเลขบาท), sqm (ตัวเลข ตร.ม.), beds (ตัวเลขห้องนอน), transit (เช่น BTS หมอชิต), client_name, stage, followup_date (YYYY-MM-DD, ตีความ \"พรุ่งนี้/วันศุกร์\" จากวันนี้ = {{formatDate(now; \"YYYY-MM-DD\"; \"Asia/Bangkok\")}}), note, question\nadd_property ใช้ทั้งเพิ่มทรัพย์ใหม่ และเพิ่ม/แก้ข้อมูลทรัพย์เดิมที่ระบุชื่อ เช่น \"The Line Jatujak 120 ตร.ม.\" = add_property, sqm=120\n\"เพิ่มรูปทรัพย์ X\" หรือ \"รูปนี้ของ X\" = add_property, property_name=X (ระบบจะย้ายรูปที่เพิ่งส่งไปไว้ที่ทรัพย์นั้น)\nจำนวนห้องน้ำ หรือรายละเอียดอื่นที่ไม่มีฟิลด์ ให้ใส่ใน note เช่น \"3 ห้องน้ำ\"\nผู้ใช้จะได้รับบทสนทนาล่าสุดมาด้วย ให้ใช้เติมสิ่งที่ผู้ใช้ไม่ได้พูดซ้ำ เช่น ชื่อทรัพย์ที่เพิ่งคุยกัน ถ้าข้อความล่าสุดเป็นคำตอบของคำถามที่ระบบเพิ่งถาม ให้รวมกับคำสั่งเดิมแล้วทำต่อ ไม่ต้องถามซ้ำ\nการเพิ่มข้อมูลให้ทรัพย์เดิมไม่จำเป็นต้องมีราคาหรือย่าน ขอแค่รู้ชื่อทรัพย์\nถ้าผู้ใช้ระบุเลขห้อง/ยูนิต ให้รวมไว้ในชื่อทรัพย์รูปแบบ \"ชื่อโครงการ #เลขห้อง\" เช่น \"The Line Jatujak ห้อง 1204\" -> property_name=\"The Line Jatujak #1204\" ถ้าไม่ระบุเลขห้องให้ใช้ชื่อโครงการตามเดิม\nstage ต้องเป็นค่าใดค่าหนึ่ง: Inquiry, Viewing, Offer, Negotiation, Contract, Transfer (นัดดูห้อง = Viewing)\nฟิลด์ที่ไม่มีให้ใส่ null\nถ้าข้อมูลไม่ครบหรือไม่แน่ใจ ให้ intent=unknown และใส่ question ถามกลับสั้นๆ ห้ามเดาตัวเลข",
+        "messages": [
+         {
+          "role": "user",
+          "inputType": "single",
+          "content": "บทสนทนาล่าสุด (ใหม่สุดอยู่บน):{{ifempty(8.text; \" ไม่มี\")}}\n\nข้อความใหม่: {{1.events[].message.text}}"
+         }
+        ],
+        "metadata": {},
+        "thinking": {
+         "type": "disabled"
+        },
+        "container": {},
+        "max_tokens": 400,
+        "temperature": 0,
+        "tool_choice": {},
+        "outputFormat": {
+         "type": "text"
+        }
+       },
+       "onerror": [
+        {
+         "id": 90,
+         "module": "line:sendAReplyMessage",
+         "version": 1,
+         "parameters": {
+          "__IMTCONN__": 11951777
+         },
+         "mapper": {
+          "messages": [
+           {
+            "type": "text",
+            "text": "ขออภัยค่ะ ระบบขัดข้องชั่วคราว กรุณาลองส่งข้อความอีกครั้งในอีกสักครู่"
+           }
+          ],
+          "replyToken": "{{1.events[].replyToken}}",
+          "notificationDisabled": false
+         }
+        },
+        {
+         "id": 91,
+         "module": "builtin:Ignore",
+         "version": 1,
+         "parameters": {},
+         "mapper": {}
+        }
+       ]
+      },
+      {
+       "id": 3,
+       "module": "json:ParseJSON",
+       "version": 1,
+       "parameters": {},
+       "mapper": {
+        "json": "{{trim(replace(replace(2.textResponse; \"```json\"; emptystring); \"```\"; emptystring))}}"
+       },
+       "onerror": [
+        {
+         "id": 92,
+         "module": "line:sendAReplyMessage",
+         "version": 1,
+         "parameters": {
+          "__IMTCONN__": 11951777
+         },
+         "mapper": {
+          "messages": [
+           {
+            "type": "text",
+            "text": "ขออภัยค่ะ ระบบขัดข้องชั่วคราว กรุณาลองส่งข้อความอีกครั้งในอีกสักครู่"
+           }
+          ],
+          "replyToken": "{{1.events[].replyToken}}",
+          "notificationDisabled": false
+         }
+        },
+        {
+         "id": 93,
+         "module": "builtin:Ignore",
+         "version": 1,
+         "parameters": {},
+         "mapper": {}
+        }
+       ]
+      },
+      {
+       "id": 4,
+       "module": "google-sheets:addRow",
+       "version": 2,
+       "parameters": {
+        "__IMTCONN__": 4480116
+       },
+       "mapper": {
+        "from": "drive",
+        "mode": "select",
+        "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+        "sheetId": "Log",
+        "includesHeaders": true,
+        "values": {
+         "0": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Bangkok\")}}",
+         "1": "{{1.events[].source.userId}}",
+         "2": "{{1.events[].message.text}}",
+         "3": "{{3.intent}}",
+         "4": "{{2.textResponse}}",
+         "5": "received"
+        },
+        "insertUnformatted": false,
+        "valueInputOption": "RAW",
+        "insertDataOption": "INSERT_ROWS"
+       }
+      },
+      {
+       "id": 5,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 75,
+           "module": "google-sheets:filterRows",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116,
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Properties",
+            "includesHeaders": true,
+            "tableFirstRow": "A1:Z1",
+            "valueRenderOption": "FORMATTED_VALUE",
+            "dateTimeRenderOption": "FORMATTED_STRING"
+           },
+           "mapper": {
+            "filter": [
+             [
+              {
+               "a": "C",
+               "o": "text:equal",
+               "b": "{{1.events[].source.userId}}"
+              },
+              {
+               "a": "K",
+               "o": "text:notequal",
+               "b": "archived"
+              },
+              {
+               "a": "D",
+               "o": "text:equal:ci",
+               "b": "{{ifempty(3.property_name; \"§none§\")}}"
+              }
+             ]
+            ],
+            "sortOrder": "asc",
+            "limit": "20"
+           },
+           "filter": {
+            "name": "add_property",
+            "conditions": [
+             [
+              {
+               "a": "{{3.intent}}",
+               "o": "text:equal",
+               "b": "add_property"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 76,
+           "module": "util:TextAggregator",
+           "version": 1,
+           "parameters": {
+            "feeder": 75,
+            "rowSeparator": "¶"
+           },
+           "mapper": {
+            "value": "{{if(length(75.`0`) > 0; 75.`__ROW_NUMBER__`; emptystring)}}{{if(length(75.`0`) > 0; \"§U\"; emptystring)}}{{if(length(75.`0`) > 0; 75.`11`; emptystring)}}{{if(length(75.`0`) > 0; \"§A\"; emptystring)}}{{if(length(75.`0`) > 0; 75.`5`; emptystring)}}{{if(length(75.`0`) > 0; \"§P\"; emptystring)}}{{if(length(75.`0`) > 0; 75.`6`; emptystring)}}{{if(length(75.`0`) > 0; \"§S\"; emptystring)}}{{if(length(75.`0`) > 0; 75.`7`; emptystring)}}{{if(length(75.`0`) > 0; \"§B\"; emptystring)}}{{if(length(75.`0`) > 0; 75.`8`; emptystring)}}{{if(length(75.`0`) > 0; \"§F\"; emptystring)}}{{if(length(75.`0`) > 0; 75.`13`; emptystring)}}{{if(length(75.`0`) > 0; \"§I\"; emptystring)}}{{if(length(75.`0`) > 0; 75.`0`; emptystring)}}"
+           }
+          },
+          {
+           "id": 70,
+           "module": "google-sheets:filterRows",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116,
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Properties",
+            "includesHeaders": true,
+            "tableFirstRow": "A1:Z1",
+            "valueRenderOption": "FORMATTED_VALUE",
+            "dateTimeRenderOption": "FORMATTED_STRING"
+           },
+           "mapper": {
+            "filter": [
+             [
+              {
+               "a": "C",
+               "o": "text:equal",
+               "b": "{{1.events[].source.userId}}"
+              },
+              {
+               "a": "K",
+               "o": "text:equal",
+               "b": "draft"
+              }
+             ]
+            ],
+            "sortOrder": "asc",
+            "limit": "20"
+           }
+          },
+          {
+           "id": 71,
+           "module": "util:TextAggregator",
+           "version": 1,
+           "parameters": {
+            "feeder": 70,
+            "rowSeparator": "¶"
+           },
+           "mapper": {
+            "value": "{{if(length(70.`0`) > 0; 70.`__ROW_NUMBER__`; emptystring)}}{{if(length(70.`0`) > 0; \"§U\"; emptystring)}}{{if(length(70.`0`) > 0; 70.`11`; emptystring)}}{{if(length(70.`0`) > 0; \"§F\"; emptystring)}}{{if(length(70.`0`) > 0; 70.`13`; emptystring)}}{{if(length(70.`0`) > 0; \"§I\"; emptystring)}}{{if(length(70.`0`) > 0; 70.`0`; emptystring)}}"
+           }
+          },
+          {
+           "id": 72,
+           "module": "builtin:BasicRouter",
+           "version": 1,
+           "mapper": null,
+           "routes": [
+            {
+             "flow": [
+              {
+               "id": 77,
+               "module": "google-sheets:updateRow",
+               "version": 2,
+               "parameters": {
+                "__IMTCONN__": 4480116
+               },
+               "mapper": {
+                "from": "drive",
+                "mode": "select",
+                "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+                "sheetId": "Properties",
+                "includesHeaders": true,
+                "rowNumber": "{{first(split(first(split(76.text; \"¶\")); \"§\"))}}",
+                "values": {
+                 "4": "{{3.type}}",
+                 "5": "{{3.area}}",
+                 "6": "{{3.price}}",
+                 "7": "{{3.sqm}}",
+                 "8": "{{3.beds}}",
+                 "9": "{{3.transit}}",
+                 "12": "{{3.note}}",
+                 "11": "{{substring(get(split(first(split(76.text; \"¶\")); \"§\"); 2); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 2)))}}{{if(length(71.text) > 0; if(length(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 2); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 2)))) > 0; \" \"; emptystring); emptystring)}}{{if(length(71.text) > 0; substring(get(split(first(split(71.text; \"¶\")); \"§\"); 2); 1; length(get(split(first(split(71.text; \"¶\")); \"§\"); 2))); emptystring)}}",
+                 "13": "{{if(length(71.text) > 0; ifempty(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7))); substring(get(split(first(split(71.text; \"¶\")); \"§\"); 3); 1; length(get(split(first(split(71.text; \"¶\")); \"§\"); 3)))); substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7))))}}"
+                },
+                "valueInputOption": "RAW"
+               },
+               "filter": {
+                "name": "same name exists",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{76.text}}",
+                   "o": "exist"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 79,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "parameters": {
+                "__IMTCONN__": 11951777
+               },
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "อัปเดตทรัพย์เดิมแล้ว: {{3.property_name}} | ย่าน {{ifempty(3.area; ifempty(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 3); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 3))); \"-\"))}} | ราคา {{ifempty(3.price; ifempty(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 4); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 4))); \"-\"))}} บาท | {{ifempty(3.sqm; ifempty(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 5); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 5))); \"-\"))}} ตร.ม. | {{ifempty(3.beds; ifempty(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 6); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 6))); \"-\"))}} ห้องนอน\nถ้าผิด พิมพ์บอกใหม่ได้เลย เช่น \"แก้ ราคา 8900000\""
+                 }
+                ],
+                "replyToken": "{{1.events[].replyToken}}",
+                "notificationDisabled": false
+               }
+              },
+              {
+               "id": 78,
+               "module": "google-sheets:updateRow",
+               "version": 2,
+               "parameters": {
+                "__IMTCONN__": 4480116
+               },
+               "mapper": {
+                "from": "drive",
+                "mode": "select",
+                "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+                "sheetId": "Properties",
+                "includesHeaders": true,
+                "rowNumber": "{{first(split(first(split(71.text; \"¶\")); \"§\"))}}",
+                "values": {
+                 "10": "archived"
+                },
+                "valueInputOption": "RAW"
+               },
+               "filter": {
+                "name": "had a draft",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{71.text}}",
+                   "o": "exist"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 83,
+               "module": "google-drive:makeApiCall",
+               "version": 4,
+               "parameters": {
+                "__IMTCONN__": 11956360
+               },
+               "mapper": {
+                "url": "/v3/files/{{substring(get(split(first(split(71.text; \"¶\")); \"§\"); 3); 1; length(get(split(first(split(71.text; \"¶\")); \"§\"); 3)))}}{{if(length(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7)))) > 0; \"?addParents=\"; emptystring)}}{{if(length(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7)))) > 0; substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7))); emptystring)}}{{if(length(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7)))) > 0; \"&removeParents=18YoyjRB3lvL0WwrGnkCxrQEv4I4ASsra\"; emptystring)}}",
+                "method": "PATCH",
+                "headers": [
+                 {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                 }
+                ],
+                "qs": [],
+                "body": "{\"name\": \"{{if(length(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7)))) > 0; \"รูปเพิ่ม \"; emptystring)}}{{if(length(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7)))) > 0; formatDate(now; \"YYYY-MM-DD HH:mm\"; \"Asia/Bangkok\"); emptystring)}}{{if(length(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7)))) = 0; substring(get(split(first(split(76.text; \"¶\")); \"§\"); 8); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 8))); emptystring)}}{{if(length(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7)))) = 0; \" \"; emptystring)}}{{if(length(substring(get(split(first(split(76.text; \"¶\")); \"§\"); 7); 1; length(get(split(first(split(76.text; \"¶\")); \"§\"); 7)))) = 0; 3.property_name; emptystring)}}\"}"
+               },
+               "filter": {
+                "name": "draft has a folder",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{substring(get(split(first(split(71.text; \"¶\")); \"§\"); 3); 1; length(get(split(first(split(71.text; \"¶\")); \"§\"); 3)))}}",
+                   "o": "exist"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 73,
+               "module": "google-sheets:updateRow",
+               "version": 2,
+               "parameters": {
+                "__IMTCONN__": 4480116
+               },
+               "mapper": {
+                "from": "drive",
+                "mode": "select",
+                "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+                "sheetId": "Properties",
+                "includesHeaders": true,
+                "rowNumber": "{{first(split(first(split(71.text; \"¶\")); \"§\"))}}",
+                "values": {
+                 "4": "{{3.type}}",
+                 "5": "{{3.area}}",
+                 "6": "{{3.price}}",
+                 "7": "{{3.sqm}}",
+                 "8": "{{3.beds}}",
+                 "9": "{{3.transit}}",
+                 "12": "{{3.note}}",
+                 "1": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Bangkok\")}}",
+                 "3": "{{3.property_name}}",
+                 "10": "active"
+                },
+                "valueInputOption": "RAW"
+               },
+               "filter": {
+                "name": "new name, has draft",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{76.text}}",
+                   "o": "notexist"
+                  },
+                  {
+                   "a": "{{71.text}}",
+                   "o": "exist"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 74,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "parameters": {
+                "__IMTCONN__": 11951777
+               },
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "บันทึกแล้ว: {{3.property_name}} | ย่าน {{ifempty(3.area; \"-\")}} | ราคา {{ifempty(3.price; \"-\")}} บาท | {{ifempty(3.sqm; \"-\")}} ตร.ม. | {{ifempty(3.beds; \"-\")}} ห้องนอน | รูป {{length(split(trim(substring(get(split(first(split(71.text; \"¶\")); \"§\"); 2); 1; length(get(split(first(split(71.text; \"¶\")); \"§\"); 2)))); \" \"))}} รูป\nถ้าผิด พิมพ์บอกใหม่ได้เลย เช่น \"แก้ ราคา 8900000\""
+                 }
+                ],
+                "replyToken": "{{1.events[].replyToken}}",
+                "notificationDisabled": false
+               }
+              },
+              {
+               "id": 84,
+               "module": "google-drive:makeApiCall",
+               "version": 4,
+               "parameters": {
+                "__IMTCONN__": 11956360
+               },
+               "mapper": {
+                "url": "/v3/files/{{substring(get(split(first(split(71.text; \"¶\")); \"§\"); 3); 1; length(get(split(first(split(71.text; \"¶\")); \"§\"); 3)))}}",
+                "method": "PATCH",
+                "headers": [
+                 {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                 }
+                ],
+                "qs": [],
+                "body": "{\"name\": \"{{substring(get(split(first(split(71.text; \"¶\")); \"§\"); 4); 1; length(get(split(first(split(71.text; \"¶\")); \"§\"); 4)))}} {{3.property_name}}\"}"
+               },
+               "filter": {
+                "name": "draft has a folder",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{substring(get(split(first(split(71.text; \"¶\")); \"§\"); 3); 1; length(get(split(first(split(71.text; \"¶\")); \"§\"); 3)))}}",
+                   "o": "exist"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 10,
+               "module": "google-sheets:addRow",
+               "version": 2,
+               "parameters": {
+                "__IMTCONN__": 4480116
+               },
+               "mapper": {
+                "from": "drive",
+                "mode": "select",
+                "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+                "sheetId": "Properties",
+                "includesHeaders": true,
+                "values": {
+                 "4": "{{3.type}}",
+                 "5": "{{3.area}}",
+                 "6": "{{3.price}}",
+                 "7": "{{3.sqm}}",
+                 "8": "{{3.beds}}",
+                 "9": "{{3.transit}}",
+                 "12": "{{3.note}}",
+                 "0": "P-{{formatDate(now; \"YYMMDDHHmmss\"; \"Asia/Bangkok\")}}",
+                 "1": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Bangkok\")}}",
+                 "2": "{{1.events[].source.userId}}",
+                 "3": "{{3.property_name}}",
+                 "10": "active"
+                },
+                "insertUnformatted": false,
+                "valueInputOption": "RAW",
+                "insertDataOption": "INSERT_ROWS"
+               },
+               "filter": {
+                "name": "new name, no draft",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{76.text}}",
+                   "o": "notexist"
+                  },
+                  {
+                   "a": "{{71.text}}",
+                   "o": "notexist"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 11,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "parameters": {
+                "__IMTCONN__": 11951777
+               },
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "บันทึกแล้ว: {{3.property_name}} | ย่าน {{ifempty(3.area; \"-\")}} | ราคา {{ifempty(3.price; \"-\")}} บาท | {{ifempty(3.sqm; \"-\")}} ตร.ม. | {{ifempty(3.beds; \"-\")}} ห้องนอน\nถ้าผิด พิมพ์บอกใหม่ได้เลย เช่น \"แก้ ราคา 8900000\""
+                 }
+                ],
+                "replyToken": "{{1.events[].replyToken}}",
+                "notificationDisabled": false
+               }
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 20,
+           "module": "google-sheets:filterRows",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116,
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Properties",
+            "includesHeaders": true,
+            "tableFirstRow": "A1:Z1",
+            "valueRenderOption": "FORMATTED_VALUE",
+            "dateTimeRenderOption": "FORMATTED_STRING"
+           },
+           "mapper": {
+            "filter": [
+             [
+              {
+               "a": "C",
+               "o": "text:equal",
+               "b": "{{1.events[].source.userId}}"
+              },
+              {
+               "a": "K",
+               "o": "text:notequal",
+               "b": "archived"
+              },
+              {
+               "a": "D",
+               "o": "text:contain:ci",
+               "b": "{{ifempty(3.property_name; \"§none§\")}}"
+              }
+             ],
+             [
+              {
+               "a": "C",
+               "o": "text:equal",
+               "b": "{{1.events[].source.userId}}"
+              },
+              {
+               "a": "K",
+               "o": "text:notequal",
+               "b": "archived"
+              },
+              {
+               "a": "F",
+               "o": "text:contain:ci",
+               "b": "{{ifempty(3.area; \"§none§\")}}"
+              }
+             ]
+            ],
+            "sortOrder": "asc",
+            "limit": "20"
+           },
+           "filter": {
+            "name": "ask_price / search_property",
+            "conditions": [
+             [
+              {
+               "a": "{{3.intent}}",
+               "o": "text:equal",
+               "b": "ask_price"
+              }
+             ],
+             [
+              {
+               "a": "{{3.intent}}",
+               "o": "text:equal",
+               "b": "search_property"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 21,
+           "module": "util:TextAggregator",
+           "version": 1,
+           "parameters": {
+            "feeder": 20,
+            "rowSeparator": " "
+           },
+           "mapper": {
+            "value": "{{if(length(20.`3`) > 0; newline; emptystring)}}{{if(length(20.`3`) > 0; \"• \"; emptystring)}}{{if(length(20.`3`) > 0; 20.`3`; emptystring)}}{{if(length(20.`3`) > 0; \" (\"; emptystring)}}{{if(length(20.`3`) > 0; 20.`5`; emptystring)}}{{if(length(20.`3`) > 0; \") ราคา \"; emptystring)}}{{if(length(20.`3`) > 0; 20.`6`; emptystring)}}{{if(length(20.`3`) > 0; \" บาท | สถานะ \"; emptystring)}}{{if(length(20.`3`) > 0; 20.`10`; emptystring)}}"
+           }
+          },
+          {
+           "id": 22,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "parameters": {
+            "__IMTCONN__": 11951777
+           },
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "{{ifempty(trim(21.text); \"ไม่พบทรัพย์ที่ตรงกับคำค้นในข้อมูลของคุณ\")}}"
+             }
+            ],
+            "replyToken": "{{1.events[].replyToken}}",
+            "notificationDisabled": false
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 30,
+           "module": "google-sheets:filterRows",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116,
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Clients",
+            "includesHeaders": true,
+            "tableFirstRow": "A1:Z1",
+            "valueRenderOption": "FORMATTED_VALUE",
+            "dateTimeRenderOption": "FORMATTED_STRING"
+           },
+           "mapper": {
+            "filter": [
+             [
+              {
+               "a": "B",
+               "o": "text:equal",
+               "b": "{{1.events[].source.userId}}"
+              },
+              {
+               "a": "C",
+               "o": "text:contain:ci",
+               "b": "{{ifempty(3.client_name; \"§none§\")}}"
+              }
+             ]
+            ],
+            "sortOrder": "asc",
+            "limit": "20"
+           },
+           "filter": {
+            "name": "update_client / set_followup",
+            "conditions": [
+             [
+              {
+               "a": "{{3.intent}}",
+               "o": "text:equal",
+               "b": "update_client"
+              }
+             ],
+             [
+              {
+               "a": "{{3.intent}}",
+               "o": "text:equal",
+               "b": "set_followup"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 31,
+           "module": "util:TextAggregator",
+           "version": 1,
+           "parameters": {
+            "feeder": 30,
+            "rowSeparator": ","
+           },
+           "mapper": {
+            "value": "{{if(length(30.`2`) > 0; 30.`__ROW_NUMBER__`; emptystring)}}"
+           }
+          },
+          {
+           "id": 38,
+           "module": "google-sheets:filterRows",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116,
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Properties",
+            "includesHeaders": true,
+            "tableFirstRow": "A1:Z1",
+            "valueRenderOption": "FORMATTED_VALUE",
+            "dateTimeRenderOption": "FORMATTED_STRING"
+           },
+           "mapper": {
+            "filter": [
+             [
+              {
+               "a": "C",
+               "o": "text:equal",
+               "b": "{{1.events[].source.userId}}"
+              },
+              {
+               "a": "K",
+               "o": "text:notequal",
+               "b": "archived"
+              },
+              {
+               "a": "D",
+               "o": "text:contain:ci",
+               "b": "{{ifempty(3.property_name; \"§none§\")}}"
+              }
+             ]
+            ],
+            "sortOrder": "asc",
+            "limit": "20"
+           }
+          },
+          {
+           "id": 39,
+           "module": "util:TextAggregator",
+           "version": 1,
+           "parameters": {
+            "feeder": 38,
+            "rowSeparator": ","
+           },
+           "mapper": {
+            "value": "{{if(length(38.`3`) > 0; 38.`0`; emptystring)}}"
+           }
+          },
+          {
+           "id": 32,
+           "module": "builtin:BasicRouter",
+           "version": 1,
+           "mapper": null,
+           "routes": [
+            {
+             "flow": [
+              {
+               "id": 33,
+               "module": "google-sheets:addRow",
+               "version": 2,
+               "parameters": {
+                "__IMTCONN__": 4480116
+               },
+               "mapper": {
+                "from": "drive",
+                "mode": "select",
+                "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+                "sheetId": "Clients",
+                "includesHeaders": true,
+                "values": {
+                 "0": "C-{{formatDate(now; \"YYMMDDHHmmss\"; \"Asia/Bangkok\")}}",
+                 "1": "{{1.events[].source.userId}}",
+                 "2": "{{3.client_name}}",
+                 "3": "",
+                 "4": "{{first(split(39.text; \",\"))}}",
+                 "5": "{{ifempty(3.stage; \"Inquiry\")}}",
+                 "6": "{{3.followup_date}}",
+                 "7": "{{3.note}}",
+                 "8": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Bangkok\")}}"
+                },
+                "insertUnformatted": false,
+                "valueInputOption": "RAW",
+                "insertDataOption": "INSERT_ROWS"
+               },
+               "filter": {
+                "name": "new client",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{31.text}}",
+                   "o": "notexist"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 34,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "parameters": {
+                "__IMTCONN__": 11951777
+               },
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "บันทึกแล้ว (ลูกค้าใหม่): {{3.client_name}} | stage {{ifempty(3.stage; \"Inquiry\")}} | follow-up {{ifempty(3.followup_date; \"-\")}} | สนใจ {{ifempty(first(split(39.text; \",\")); \"-\")}}\nถ้าผิด พิมพ์บอกใหม่ได้เลย เช่น \"แก้ ราคา 8900000\""
+                 }
+                ],
+                "replyToken": "{{1.events[].replyToken}}",
+                "notificationDisabled": false
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 35,
+               "module": "google-sheets:updateRow",
+               "version": 2,
+               "parameters": {
+                "__IMTCONN__": 4480116
+               },
+               "mapper": {
+                "from": "drive",
+                "mode": "select",
+                "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+                "sheetId": "Clients",
+                "includesHeaders": true,
+                "rowNumber": "{{first(split(31.text; \",\"))}}",
+                "values": {
+                 "4": "{{first(split(39.text; \",\"))}}",
+                 "5": "{{3.stage}}",
+                 "6": "{{3.followup_date}}",
+                 "7": "{{3.note}}",
+                 "8": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Bangkok\")}}"
+                },
+                "valueInputOption": "RAW"
+               },
+               "filter": {
+                "name": "exactly one match",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{31.text}}",
+                   "o": "exist"
+                  },
+                  {
+                   "a": "{{length(split(31.text; \",\"))}}",
+                   "o": "number:equal",
+                   "b": "1"
+                  }
+                 ]
+                ]
+               }
+              },
+              {
+               "id": 36,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "parameters": {
+                "__IMTCONN__": 11951777
+               },
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "บันทึกแล้ว: {{3.client_name}} | stage {{ifempty(3.stage; \"ไม่เปลี่ยน\")}} | follow-up {{ifempty(3.followup_date; \"ไม่เปลี่ยน\")}} | สนใจ {{ifempty(first(split(39.text; \",\")); \"-\")}}\nถ้าผิด พิมพ์บอกใหม่ได้เลย เช่น \"แก้ ราคา 8900000\""
+                 }
+                ],
+                "replyToken": "{{1.events[].replyToken}}",
+                "notificationDisabled": false
+               }
+              }
+             ]
+            },
+            {
+             "flow": [
+              {
+               "id": 37,
+               "module": "line:sendAReplyMessage",
+               "version": 1,
+               "parameters": {
+                "__IMTCONN__": 11951777
+               },
+               "mapper": {
+                "messages": [
+                 {
+                  "type": "text",
+                  "text": "พบลูกค้าชื่อ \"{{3.client_name}}\" มากกว่า 1 คน กรุณาพิมพ์ชื่อเต็มให้ชัดขึ้นค่ะ"
+                 }
+                ],
+                "replyToken": "{{1.events[].replyToken}}",
+                "notificationDisabled": false
+               },
+               "filter": {
+                "name": "more than one match",
+                "conditions": [
+                 [
+                  {
+                   "a": "{{31.text}}",
+                   "o": "exist"
+                  },
+                  {
+                   "a": "{{length(split(31.text; \",\"))}}",
+                   "o": "number:greater",
+                   "b": "1"
+                  }
+                 ]
+                ]
+               }
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 40,
+           "module": "google-sheets:filterRows",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116,
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Clients",
+            "includesHeaders": true,
+            "tableFirstRow": "A1:Z1",
+            "valueRenderOption": "FORMATTED_VALUE",
+            "dateTimeRenderOption": "FORMATTED_STRING"
+           },
+           "mapper": {
+            "filter": [
+             [
+              {
+               "a": "B",
+               "o": "text:equal",
+               "b": "{{1.events[].source.userId}}"
+              }
+             ]
+            ],
+            "sortOrder": "asc",
+            "limit": "20"
+           },
+           "filter": {
+            "name": "list_followups",
+            "conditions": [
+             [
+              {
+               "a": "{{3.intent}}",
+               "o": "text:equal",
+               "b": "list_followups"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 41,
+           "module": "util:TextAggregator",
+           "version": 1,
+           "parameters": {
+            "feeder": 40,
+            "rowSeparator": " "
+           },
+           "mapper": {
+            "value": "{{if(replace(ifempty(40.`6`; \"99999999\"); \"-\"; emptystring) <= formatDate(now; \"YYYYMMDD\"; \"Asia/Bangkok\"); newline; emptystring)}}{{if(replace(ifempty(40.`6`; \"99999999\"); \"-\"; emptystring) <= formatDate(now; \"YYYYMMDD\"; \"Asia/Bangkok\"); \"• \"; emptystring)}}{{if(replace(ifempty(40.`6`; \"99999999\"); \"-\"; emptystring) <= formatDate(now; \"YYYYMMDD\"; \"Asia/Bangkok\"); 40.`2`; emptystring)}}{{if(replace(ifempty(40.`6`; \"99999999\"); \"-\"; emptystring) <= formatDate(now; \"YYYYMMDD\"; \"Asia/Bangkok\"); \" — \"; emptystring)}}{{if(replace(ifempty(40.`6`; \"99999999\"); \"-\"; emptystring) <= formatDate(now; \"YYYYMMDD\"; \"Asia/Bangkok\"); 40.`5`; emptystring)}}{{if(replace(ifempty(40.`6`; \"99999999\"); \"-\"; emptystring) <= formatDate(now; \"YYYYMMDD\"; \"Asia/Bangkok\"); \" (นัด \"; emptystring)}}{{if(replace(ifempty(40.`6`; \"99999999\"); \"-\"; emptystring) <= formatDate(now; \"YYYYMMDD\"; \"Asia/Bangkok\"); 40.`6`; emptystring)}}{{if(replace(ifempty(40.`6`; \"99999999\"); \"-\"; emptystring) <= formatDate(now; \"YYYYMMDD\"; \"Asia/Bangkok\"); \") \"; emptystring)}}{{if(replace(ifempty(40.`6`; \"99999999\"); \"-\"; emptystring) <= formatDate(now; \"YYYYMMDD\"; \"Asia/Bangkok\"); 40.`7`; emptystring)}}"
+           }
+          },
+          {
+           "id": 42,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "parameters": {
+            "__IMTCONN__": 11951777
+           },
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "{{ifempty(trim(41.text); \"วันนี้ไม่มีลูกค้าที่ต้อง follow up ค่ะ\")}}"
+             }
+            ],
+            "replyToken": "{{1.events[].replyToken}}",
+            "notificationDisabled": false
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 50,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "parameters": {
+            "__IMTCONN__": 11951777
+           },
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "{{ifempty(3.question; \"ขอโทษค่ะ ยังไม่เข้าใจคำสั่ง ลองพิมพ์ เช่น ‘Lumière ราคาเท่าไร’ หรือ ‘ใครต้อง follow up วันนี้’\")}}"
+             }
+            ],
+            "replyToken": "{{1.events[].replyToken}}",
+            "notificationDisabled": false
+           },
+           "filter": {
+            "name": "unknown",
+            "conditions": [
+             [
+              {
+               "a": "{{3.intent}}",
+               "o": "text:equal",
+               "b": "unknown"
+              }
+             ],
+             [
+              {
+               "a": "{{3.intent}}",
+               "o": "notexist"
+              }
+             ]
+            ]
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "flow": [
+      {
+       "id": 60,
+       "module": "http:DownloadFile",
+       "version": 4,
+       "parameters": {
+        "authenticationType": "apiKeyConnection",
+        "apiKeyAccount": 11958488
+       },
+       "filter": {
+        "name": "LINE image message",
+        "conditions": [
+         [
+          {
+           "a": "{{1.events[].type}}",
+           "o": "text:equal",
+           "b": "message"
+          },
+          {
+           "a": "{{1.events[].message.type}}",
+           "o": "text:equal",
+           "b": "image"
+          }
+         ]
+        ]
+       },
+       "mapper": {
+        "url": "https://api-data.line.me/v2/bot/message/{{1.events[].message.id}}/content",
+        "shareCookies": false,
+        "stopOnHttpError": true
+       },
+       "onerror": [
+        {
+         "id": 94,
+         "module": "line:sendAReplyMessage",
+         "version": 1,
+         "parameters": {
+          "__IMTCONN__": 11951777
+         },
+         "mapper": {
+          "messages": [
+           {
+            "type": "text",
+            "text": "ขออภัยค่ะ ระบบขัดข้องชั่วคราว กรุณาลองส่งข้อความอีกครั้งในอีกสักครู่"
+           }
+          ],
+          "replyToken": "{{1.events[].replyToken}}",
+          "notificationDisabled": false
+         }
+        },
+        {
+         "id": 95,
+         "module": "builtin:Ignore",
+         "version": 1,
+         "parameters": {},
+         "mapper": {}
+        }
+       ]
+      },
+      {
+       "id": 64,
+       "module": "google-sheets:filterRows",
+       "version": 2,
+       "parameters": {
+        "__IMTCONN__": 4480116,
+        "from": "drive",
+        "mode": "select",
+        "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+        "sheetId": "Properties",
+        "includesHeaders": true,
+        "tableFirstRow": "A1:Z1",
+        "valueRenderOption": "FORMATTED_VALUE",
+        "dateTimeRenderOption": "FORMATTED_STRING"
+       },
+       "mapper": {
+        "filter": [
+         [
+          {
+           "a": "C",
+           "o": "text:equal",
+           "b": "{{1.events[].source.userId}}"
+          },
+          {
+           "a": "K",
+           "o": "text:equal",
+           "b": "draft"
+          }
+         ]
+        ],
+        "sortOrder": "asc",
+        "limit": "20"
+       }
+      },
+      {
+       "id": 63,
+       "module": "util:TextAggregator",
+       "version": 1,
+       "parameters": {
+        "feeder": 64,
+        "rowSeparator": "¶"
+       },
+       "mapper": {
+        "value": "{{if(length(64.`0`) > 0; 64.`__ROW_NUMBER__`; emptystring)}}{{if(length(64.`0`) > 0; \"§U\"; emptystring)}}{{if(length(64.`0`) > 0; 64.`11`; emptystring)}}{{if(length(64.`0`) > 0; \"§F\"; emptystring)}}{{if(length(64.`0`) > 0; 64.`13`; emptystring)}}{{if(length(64.`0`) > 0; \"§I\"; emptystring)}}{{if(length(64.`0`) > 0; 64.`0`; emptystring)}}"
+       }
+      },
+      {
+       "id": 65,
+       "module": "builtin:BasicRouter",
+       "version": 1,
+       "mapper": null,
+       "routes": [
+        {
+         "flow": [
+          {
+           "id": 80,
+           "module": "google-drive:createAFolder",
+           "version": 4,
+           "parameters": {
+            "__IMTCONN__": 11956360
+           },
+           "filter": {
+            "name": "no draft yet",
+            "conditions": [
+             [
+              {
+               "a": "{{63.text}}",
+               "o": "notexist"
+              }
+             ]
+            ]
+           },
+           "mapper": {
+            "destination": "drive",
+            "folderId": "/18YoyjRB3lvL0WwrGnkCxrQEv4I4ASsra",
+            "name": "draft {{formatDate(now; \"YYYY-MM-DD HH:mm\"; \"Asia/Bangkok\")}}"
+           }
+          },
+          {
+           "id": 61,
+           "module": "google-drive:uploadAFile",
+           "version": 4,
+           "parameters": {
+            "__IMTCONN__": 11956360
+           },
+           "mapper": {
+            "destination": "drive",
+            "folderId": "/{{80.id}}",
+            "data": "{{60.data}}",
+            "title": "{{1.events[].message.id}}",
+            "filename": "{{1.events[].message.id}}.jpg",
+            "convert": false
+           },
+           "onerror": [
+            {
+             "id": 96,
+             "module": "line:sendAReplyMessage",
+             "version": 1,
+             "parameters": {
+              "__IMTCONN__": 11951777
+             },
+             "mapper": {
+              "messages": [
+               {
+                "type": "text",
+                "text": "ขออภัยค่ะ ระบบขัดข้องชั่วคราว กรุณาลองส่งข้อความอีกครั้งในอีกสักครู่"
+               }
+              ],
+              "replyToken": "{{1.events[].replyToken}}",
+              "notificationDisabled": false
+             }
+            },
+            {
+             "id": 97,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "parameters": {},
+             "mapper": {}
+            }
+           ]
+          },
+          {
+           "id": 62,
+           "module": "google-sheets:addRow",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116
+           },
+           "mapper": {
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Log",
+            "includesHeaders": true,
+            "values": {
+             "0": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Bangkok\")}}",
+             "1": "{{1.events[].source.userId}}",
+             "2": "[image]",
+             "3": "image",
+             "4": "https://drive.google.com/file/d/{{61.id}}/view",
+             "5": "received"
+            },
+            "insertUnformatted": false,
+            "valueInputOption": "RAW",
+            "insertDataOption": "INSERT_ROWS"
+           }
+          },
+          {
+           "id": 66,
+           "module": "google-sheets:addRow",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116
+           },
+           "mapper": {
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Properties",
+            "includesHeaders": true,
+            "values": {
+             "0": "P-{{formatDate(now; \"YYMMDDHHmmss\"; \"Asia/Bangkok\")}}",
+             "1": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Bangkok\")}}",
+             "2": "{{1.events[].source.userId}}",
+             "10": "draft",
+             "11": "https://drive.google.com/file/d/{{61.id}}/view",
+             "13": "{{80.id}}"
+            },
+            "insertUnformatted": false,
+            "valueInputOption": "RAW",
+            "insertDataOption": "INSERT_ROWS"
+           }
+          },
+          {
+           "id": 67,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "parameters": {
+            "__IMTCONN__": 11951777
+           },
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "รับรูปแล้ว (1 รูป) ส่งรูปเพิ่มได้ หรือพิมพ์รายละเอียดทรัพย์ต่อได้เลย เช่น \"เพิ่มทรัพย์ Lumière ย่านอโศก ราคา 8900000\""
+             }
+            ],
+            "replyToken": "{{1.events[].replyToken}}",
+            "notificationDisabled": false
+           }
+          }
+         ]
+        },
+        {
+         "flow": [
+          {
+           "id": 81,
+           "module": "google-drive:uploadAFile",
+           "version": 4,
+           "parameters": {
+            "__IMTCONN__": 11956360
+           },
+           "mapper": {
+            "destination": "drive",
+            "folderId": "/{{ifempty(substring(get(split(first(split(63.text; \"¶\")); \"§\"); 3); 1; length(get(split(first(split(63.text; \"¶\")); \"§\"); 3))); \"18YoyjRB3lvL0WwrGnkCxrQEv4I4ASsra\")}}",
+            "data": "{{60.data}}",
+            "title": "{{1.events[].message.id}}",
+            "filename": "{{1.events[].message.id}}.jpg",
+            "convert": false
+           },
+           "onerror": [
+            {
+             "id": 98,
+             "module": "line:sendAReplyMessage",
+             "version": 1,
+             "parameters": {
+              "__IMTCONN__": 11951777
+             },
+             "mapper": {
+              "messages": [
+               {
+                "type": "text",
+                "text": "ขออภัยค่ะ ระบบขัดข้องชั่วคราว กรุณาลองส่งข้อความอีกครั้งในอีกสักครู่"
+               }
+              ],
+              "replyToken": "{{1.events[].replyToken}}",
+              "notificationDisabled": false
+             }
+            },
+            {
+             "id": 99,
+             "module": "builtin:Ignore",
+             "version": 1,
+             "parameters": {},
+             "mapper": {}
+            }
+           ],
+           "filter": {
+            "name": "append to draft",
+            "conditions": [
+             [
+              {
+               "a": "{{63.text}}",
+               "o": "exist"
+              }
+             ]
+            ]
+           }
+          },
+          {
+           "id": 82,
+           "module": "google-sheets:addRow",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116
+           },
+           "mapper": {
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Log",
+            "includesHeaders": true,
+            "values": {
+             "0": "{{formatDate(now; \"YYYY-MM-DD HH:mm:ss\"; \"Asia/Bangkok\")}}",
+             "1": "{{1.events[].source.userId}}",
+             "2": "[image]",
+             "3": "image",
+             "4": "https://drive.google.com/file/d/{{81.id}}/view",
+             "5": "received"
+            },
+            "insertUnformatted": false,
+            "valueInputOption": "RAW",
+            "insertDataOption": "INSERT_ROWS"
+           }
+          },
+          {
+           "id": 68,
+           "module": "google-sheets:updateRow",
+           "version": 2,
+           "parameters": {
+            "__IMTCONN__": 4480116
+           },
+           "mapper": {
+            "from": "drive",
+            "mode": "select",
+            "spreadsheetId": "/1Pzh8td4QGDGjKPnCySNZMcBiuQfeJcml90STOrSjicg",
+            "sheetId": "Properties",
+            "includesHeaders": true,
+            "rowNumber": "{{first(split(first(split(63.text; \"¶\")); \"§\"))}}",
+            "values": {
+             "11": "{{substring(get(split(first(split(63.text; \"¶\")); \"§\"); 2); 1; length(get(split(first(split(63.text; \"¶\")); \"§\"); 2)))}}{{if(length(substring(get(split(first(split(63.text; \"¶\")); \"§\"); 2); 1; length(get(split(first(split(63.text; \"¶\")); \"§\"); 2)))) > 0; \" \"; emptystring)}}https://drive.google.com/file/d/{{81.id}}/view"
+            },
+            "valueInputOption": "RAW"
+           }
+          },
+          {
+           "id": 69,
+           "module": "line:sendAReplyMessage",
+           "version": 1,
+           "parameters": {
+            "__IMTCONN__": 11951777
+           },
+           "mapper": {
+            "messages": [
+             {
+              "type": "text",
+              "text": "รับรูปแล้ว ({{length(split(trim(substring(get(split(first(split(63.text; \"¶\")); \"§\"); 2); 1; length(get(split(first(split(63.text; \"¶\")); \"§\"); 2)))); \" \")) + 1}} รูป) ส่งรูปเพิ่มได้ หรือพิมพ์รายละเอียดทรัพย์ต่อได้เลย"
+             }
+            ],
+            "replyToken": "{{1.events[].replyToken}}",
+            "notificationDisabled": false
+           }
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "metadata": {
+  "version": 1,
+  "instant": true,
+  "scenario": {
+   "roundtrips": 1,
+   "maxErrors": 3,
+   "autoCommit": true,
+   "sequential": true,
+   "dataloss": false,
+   "dlq": false
+  }
+ }
+}
